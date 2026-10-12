@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard Revenue & Spare Part</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--navy:#12305a;--navy2:#e8eef7;--bg:#f6f8fb;--line:#dde3ec;--tx:#1b2433;--mut:#66748a;--ok:#1d7a4d;--warn:#b26a00;--bad:#b3261e}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 "Segoe UI",system-ui,sans-serif;color:var(--tx);background:var(--bg);display:flex;min-height:100vh}
+aside{width:210px;background:#fff;border-right:1px solid var(--line);padding:18px 12px;position:sticky;top:0;height:100vh;flex-shrink:0}
+aside h1{font-size:15px;color:var(--navy);margin:0 8px 18px}aside a{display:block;padding:9px 12px;border-radius:6px;color:var(--tx);text-decoration:none;margin-bottom:2px}
+aside a.on{background:var(--navy);color:#fff}main{flex:1;min-width:0;padding:20px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px}.bar h2{margin:0 auto 0 0;font-size:20px;color:var(--navy)}
+select,input,button{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:#fff}
+button{cursor:pointer}button.p{background:var(--navy);color:#fff;border-color:var(--navy)}button.d{color:var(--bad)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.k,.c{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px}.k small{color:var(--mut)}.k b{display:block;font-size:19px;color:var(--navy)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin-bottom:16px}.c h3{margin:0 0 8px;font-size:14px}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;background:#fff}th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{background:var(--navy2);color:var(--navy);font-weight:600}td.r,th.r{text-align:right}
+.tag{padding:2px 8px;border-radius:10px;font-size:12px;background:var(--navy2)}.t-Fully{background:#dff3e8;color:var(--ok)}.t-Partial{background:#fff0d6;color:var(--warn)}.t-Over{background:#fbe0de;color:var(--bad)}.t-Belum{background:#eceff3;color:var(--mut)}
+.neg{color:var(--bad)}.pos{color:var(--ok)}.view{display:none}.view.on{display:block}
+#msg{position:fixed;right:16px;bottom:16px;padding:10px 14px;border-radius:6px;color:#fff;display:none;z-index:9;max-width:340px}
+#err{background:#fbe0de;color:var(--bad);border:1px solid #f0b6b1;padding:10px 14px;border-radius:6px;margin-bottom:12px;display:none}
+dialog{border:1px solid var(--line);border-radius:8px;width:min(560px,94vw)}dialog label{display:block;font-size:12px;color:var(--mut)}dialog input{width:100%;margin-bottom:8px}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+@media(max-width:760px){body{flex-direction:column}aside{width:100%;height:auto;position:static;display:flex;overflow-x:auto;padding:8px}aside h1{display:none}aside a{white-space:nowrap}main{padding:12px}}
+</style></head><body>
+<aside><h1>PO & Revenue</h1>
+<a href="#dash" class="on">Dashboard</a><a href="#data">Data PO & Supply</a><a href="#monthly">Monthly Revenue</a><a href="#part">Spare Part Analysis</a><a href="#cust">Customer Analysis</a></aside>
+<main>
+<div id="err"></div>
+<div class="bar"><h2 id="title">Dashboard</h2>
+<select id="fY"></select><select id="fM"></select><select id="fC"></select>
+<button id="ref" class="p">Refresh Data</button></div>
+
+<section id="dash" class="view on">
+<div class="kpis" id="kpis"></div>
+<div class="grid"><div class="c"><h3>Revenue per bulan</h3><canvas id="g1"></canvas></div>
+<div class="c"><h3>Perbandingan revenue antarbulan (tahun terpilih vs sebelumnya)</h3><canvas id="g2"></canvas></div>
+<div class="c"><h3>Revenue per customer (Top 10)</h3><canvas id="g3"></canvas></div>
+<div class="c"><h3>Revenue per spare part (Top 10)</h3><canvas id="g4"></canvas></div>
+<div class="c"><h3>Qty permintaan vs supply (Top 10 part)</h3><canvas id="g5"></canvas></div></div>
+</section>
+
+<section id="data" class="view">
+<div class="bar"><input id="q" placeholder="Cari No. PO, Part Number, Customer, No. PRB" style="flex:1;min-width:200px">
+<select id="fS"><option value="">Semua status</option><option>Belum Supply</option><option>Partial Supply</option><option>Fully Supplied</option><option>Over Supply</option></select>
+<select id="sO"><option value="tglPO">Urut: Tanggal PO</option><option value="tglSupply">Tanggal Supply</option><option value="revenue">Revenue</option><option value="qtySupply">Qty Supply</option><option value="noPO">No. PO</option></select>
+<button id="sD">Terbaru ↓</button><button id="exp">Export CSV</button><button id="add" class="p">+ Tambah</button></div>
+<div class="bar" style="font-size:13px">Tanggal PO <input type="date" id="d1"> s/d <input type="date" id="d2"> &nbsp; Tanggal Supply <input type="date" id="d3"> s/d <input type="date" id="d4"></div>
+<div class="tw"><table id="tbl"></table></div>
+<div class="bar" style="margin-top:10px"><button id="pv">‹</button><span id="pg"></span><button id="nx">›</button></div>
+</section>
+
+<section id="monthly" class="view"><div class="grid"><div class="c"><canvas id="g6"></canvas></div></div><div class="tw"><table id="tm"></table></div></section>
+
+<section id="part" class="view"><div class="bar"><select id="pS"><option value="qtySupply">Qty supply terbanyak</option><option value="revenue">Revenue tertinggi</option><option value="po">Paling sering dipesan</option><option value="gap">Selisih permintaan–supply terbesar</option></select></div><div class="tw"><table id="tp"></table></div></section>
+
+<section id="cust" class="view"><div class="bar"><select id="cS"><option value="revenue">Revenue tertinggi</option><option value="po">PO terbanyak</option><option value="qtySupply">Qty supply terbanyak</option><option value="qtyReq">Permintaan tertinggi</option></select></div><div class="tw"><table id="tc"></table></div></section>
+</main>
+
+<dialog id="dlg"><form method="dialog" id="fm"><h3 id="dt">Data PO & Supply</h3><div class="f2" id="fields"></div>
+<div style="text-align:right"><button type="button" id="cx">Batal</button> <button type="submit" class="p" id="sv">Simpan</button></div></form></dialog>
+<div id="msg"></div>
+
+<script src="config.js"></script>
+<script>
+const $=id=>document.getElementById(id),BLN=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const FIELDS=[['tglReq','Tanggal Request','date'],['tglEst','Tanggal Estimasi','date'],['noPO','No. PO'],['tglPO','Tanggal PO','date'],['partNo','Part Number'],['qtyReq','Qty Permintaan','number'],['pricelist','Pricelist (Rp/unit)','number'],['diskon','Diskon (%)','number'],['net','Net (Rp/unit, otomatis jika pricelist diisi)','number'],['tglSupply','Tanggal Supply','date'],['qtySupply','Qty Supply','number'],['pengirim','Pengirim'],['noPRB','No. PRB'],['customer','Customer'],['namaPart','Nama Spare Part'],['status','Status PO'],['ket','Keterangan']];
+const rp=v=>'Rp '+Math.round(v||0).toLocaleString('id-ID'),nf=v=>(v||0).toLocaleString('id-ID');
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
+const fd=s=>{if(!s)return'-';const d=new Date(s+'T00:00:00');return isNaN(d)?esc(s):d.getDate()+' '+BLN[d.getMonth()].slice(0,3)+' '+d.getFullYear()};
+let ALL=[],WRITE=false,charts={},sortDir=-1,page=1,editRow=null;
+const revDate=r=>r.tglSupply||r.tglPO||'';
+const status=r=>{const s=num(r.qtySupply),q=num(r.qtyReq);return s===0?'Belum Supply':s>q?'Over Supply':s<q?'Partial Supply':'Fully Supplied'};
+const tcls=s=>({'Belum Supply':'Belum','Partial Supply':'Partial','Fully Supplied':'Fully','Over Supply':'Over'}[s]);
+function toast(t,ok=true){const m=$('msg');m.textContent=t;m.style.background=ok?'#1d7a4d':'#b3261e';m.style.display='block';setTimeout(()=>m.style.display='none',3500)}
+function showErr(t){$('err').style.display=t?'block':'none';$('err').textContent=t||''}
+
+async function load(){
+  if(!window.APP_CONFIG||!APP_CONFIG.API_URL||APP_CONFIG.API_URL.includes('GANTI')){showErr('URL API belum diatur. Isi API_URL di file config.js.');return}
+  $('ref').disabled=true;$('ref').textContent='Memuat…';
+  try{
+    const res=await fetch(APP_CONFIG.API_URL+(APP_CONFIG.API_URL.includes('?')?'&':'?')+'t='+Date.now());
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const j=await res.json();
+    if(!j.ok)throw new Error(j.error||'Respons API tidak valid');
+    if(!Array.isArray(j.rows))throw new Error('Format data tidak sesuai: "rows" tidak ditemukan.');
+    ALL=j.rows;WRITE=!!j.writeEnabled;showErr('');initFilters();render();
+  }catch(e){showErr('Gagal memuat data: '+e.message+'. Periksa URL API, deployment ("Anyone"), dan format sheet.')}
+  $('ref').disabled=false;$('ref').textContent='Refresh Data';
+}
+function initFilters(){
+  const ys=[...new Set(ALL.map(r=>revDate(r).slice(0,4)).filter(Boolean))].sort().reverse();
+  const cs=[...new Set(ALL.map(r=>r.customer).filter(Boolean))].sort();
+  const keep=[$('fY').value,$('fM').value,$('fC').value];
+  $('fY').innerHTML='<option value="">Semua tahun</option>'+ys.map(y=>`<option>${y}</option>`).join('');
+  $('fM').innerHTML='<option value="">Semua bulan</option>'+BLN.map((b,i)=>`<option value="${i+1}">${b}</option>`).join('');
+  $('fC').innerHTML='<option value="">Semua customer</option>'+cs.map(c=>`<option>${esc(c)}</option>`).join('');
+  $('fY').value=keep[0];$('fM').value=keep[1];$('fC').value=keep[2];
+  $('add').style.display=WRITE?'':'none';
+}
+function filt(rows=ALL,ignoreMonth=false){
+  const y=$('fY').value,m=$('fM').value,c=$('fC').value;
+  return rows.filter(r=>{const d=revDate(r);return(!y||d.slice(0,4)===y)&&(ignoreMonth||!m||+d.slice(5,7)===+m)&&(!c||r.customer===c)});
+}
+const sum=(a,k)=>a.reduce((s,r)=>s+num(r[k]),0);
+function agg(rows,key){
+  const m={};rows.forEach(r=>{const k=r[key]||'(kosong)';const o=m[k]??={k,name:r.namaPart||'',qtyReq:0,qtySupply:0,revenue:0,pos:new Set(),parts:{},cust:new Set()};
+    o.qtyReq+=num(r.qtyReq);o.qtySupply+=num(r.qtySupply);o.revenue+=num(r.revenue);o.pos.add(r.noPO);if(r.customer)o.cust.add(r.customer);
+    if(!o.name&&r.namaPart)o.name=r.namaPart;o.parts[r.partNo]=(o.parts[r.partNo]||0)+num(r.qtySupply)});
+  return Object.values(m).map(o=>({...o,po:o.pos.size,gap:o.qtyReq-o.qtySupply,top:Object.entries(o.parts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'-'}));
+}
+function chart(id,type,labels,sets,fmt){
+  charts[id]?.destroy();const col=['#12305a','#7c9cc8','#b9c8de'];
+  charts[id]=new Chart($(id),{type,data:{labels,datasets:sets.map((s,i)=>({label:s.l,data:s.d,backgroundColor:col[i],borderColor:col[i]}))},
+    options:{indexAxis:s_h(id),plugins:{legend:{display:sets.length>1}},scales:{x:{ticks:{callback:undefined}},y:{ticks:{callback:v=>fmt?(+v>=1e6?(v/1e6)+' jt':v):v}}}}});
+}
+const s_h=id=>['g3','g4'].includes(id)?'y':'x';
+function render(){
+  const rows=filt(),yearRows=filt(ALL,true);
+  const now=new Date(),cm=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  const monthRev=sum(ALL.filter(r=>revDate(r).slice(0,7)===cm&&(!$('fC').value||r.customer===$('fC').value)),'revenue');
+  const hasRev=ALL.some(r=>r.revenue!==''&&r.revenue!=null);
+  $('kpis').innerHTML=[['Total Revenue',hasRev?rp(sum(rows,'revenue')):'Belum ada data harga'],['Monthly Revenue (bulan ini)',hasRev?rp(monthRev):'-'],['Total PO',nf(new Set(rows.map(r=>r.noPO)).size)],
+   ['Total Customer',nf(new Set(rows.map(r=>r.customer).filter(Boolean)).size)],['Total Spare Part',nf(new Set(rows.map(r=>r.partNo)).size)],['Total Qty Supply',nf(sum(rows,'qtySupply'))]]
+   .map(([a,b])=>`<div class="k"><small>${a}</small><b>${b}</b></div>`).join('');
+  const mon=Array.from({length:12},(_,i)=>{const a=yearRows.filter(r=>+revDate(r).slice(5,7)===i+1);return{rev:sum(a,'revenue'),qty:sum(a,'qtySupply'),po:new Set(a.map(r=>r.noPO)).size}});
+  chart('g1','bar',BLN.map(b=>b.slice(0,3)),[{l:'Revenue',d:mon.map(m=>m.rev)}],1);
+  const y=+($('fY').value||new Date().getFullYear()),prev=filt(ALL.filter(r=>+revDate(r).slice(0,4)===y-1&&(!$('fC').value||r.customer===$('fC').value)),true);
+  const cur=filt(ALL.filter(r=>+revDate(r).slice(0,4)===y),true);
+  const mm=a=>Array.from({length:12},(_,i)=>sum(a.filter(r=>+revDate(r).slice(5,7)===i+1),'revenue'));
+  chart('g2','line',BLN.map(b=>b.slice(0,3)),[{l:String(y),d:mm(cur)},{l:String(y-1),d:mm(prev)}],1);
+  const ac=agg(rows,'customer').sort((a,b)=>b.revenue-a.revenue).slice(0,10),ap=agg(rows,'partNo');
+  chart('g3','bar',ac.map(o=>o.k),[{l:'Revenue',d:ac.map(o=>o.revenue)}],1);
+  const tp=[...ap].sort((a,b)=>b.revenue-a.revenue).slice(0,10);chart('g4','bar',tp.map(o=>o.k),[{l:'Revenue',d:tp.map(o=>o.revenue)}],1);
+  const tq=[...ap].sort((a,b)=>b.qtyReq-a.qtyReq).slice(0,10);chart('g5','bar',tq.map(o=>o.k),[{l:'Permintaan',d:tq.map(o=>o.qtyReq)},{l:'Supply',d:tq.map(o=>o.qtySupply)}]);
+  // Monthly
+  chart('g6','bar',BLN.map(b=>b.slice(0,3)),[{l:'Revenue',d:mon.map(m=>m.rev)}],1);
+  $('tm').innerHTML='<tr><th>Bulan</th><th class="r">Revenue</th><th class="r">vs Bulan Lalu</th><th class="r">Total PO</th><th class="r">Qty Supply</th></tr>'+mon.map((m,i)=>{
+    const p=i?mon[i-1].rev:0,ch=i&&p>0?((m.rev-p)/p*100):null;
+    return`<tr><td>${BLN[i]}</td><td class="r">${rp(m.rev)}</td><td class="r ${ch>0?'pos':ch<0?'neg':''}">${ch===null?'-':(ch>0?'▲ ':'▼ ')+Math.abs(ch).toFixed(1)+'%'}</td><td class="r">${m.po}</td><td class="r">${nf(m.qty)}</td></tr>`}).join('');
+  // Part
+  const ps=$('pS').value;
+  $('tp').innerHTML='<tr><th>Rank</th><th>Part Number</th><th>Nama Spare Part</th><th class="r">Qty Permintaan</th><th class="r">Qty Supply</th><th class="r">Revenue</th><th class="r">Jumlah PO</th></tr>'+
+   [...ap].sort((a,b)=>b[ps]-a[ps]).slice(0,100).map((o,i)=>`<tr><td>${i+1}</td><td>${esc(o.k)}</td><td>${esc(o.name)||'-'}</td><td class="r">${nf(o.qtyReq)}</td><td class="r">${nf(o.qtySupply)}</td><td class="r">${rp(o.revenue)}</td><td class="r">${o.po}</td></tr>`).join('');
+  // Customer
+  const cs=$('cS').value;
+  $('tc').innerHTML='<tr><th>Rank</th><th>Customer</th><th class="r">Revenue</th><th class="r">Total PO</th><th class="r">Qty Permintaan</th><th class="r">Qty Supply</th><th>Part Paling Sering Dibeli</th></tr>'+
+   agg(rows.filter(r=>r.customer),'customer').sort((a,b)=>b[cs]-a[cs]).map((o,i)=>`<tr><td>${i+1}</td><td>${esc(o.k)}</td><td class="r">${rp(o.revenue)}</td><td class="r">${o.po}</td><td class="r">${nf(o.qtyReq)}</td><td class="r">${nf(o.qtySupply)}</td><td>${esc(o.top)}</td></tr>`).join('')||'<tr><td colspan="7">Belum ada nama customer. Isi kolom Customer di Google Sheets.</td></tr>';
+  renderTable();
+}
+function renderTable(){
+  const q=$('q').value.toLowerCase(),st=$('fS').value,k=$('sO').value,[d1,d2,d3,d4]=['d1','d2','d3','d4'].map(i=>$(i).value);
+  let r=filt().filter(x=>(!q||[x.noPO,x.partNo,x.customer,x.noPRB].some(v=>String(v||'').toLowerCase().includes(q)))&&(!st||status(x)===st)
+    &&(!d1||x.tglPO>=d1)&&(!d2||x.tglPO<=d2)&&(!d3||x.tglSupply>=d3)&&(!d4||x.tglSupply<=d4));
+  const nk=['revenue','qtySupply'].includes(k);
+  r.sort((a,b)=>sortDir*(nk?num(a[k])-num(b[k]):String(a[k]||'').localeCompare(String(b[k]||''))));
+  const per=25,pages=Math.max(1,Math.ceil(r.length/per));page=Math.min(page,pages);window.__rows=r;
+  $('tbl').innerHTML='<tr><th>Tgl Request</th><th>Tgl Estimasi</th><th>No. PO</th><th>Tgl PO</th><th>Part Number</th><th>Customer</th><th class="r">Qty Minta</th><th class="r">Pricelist</th><th class="r">Diskon</th><th class="r">Net</th><th>Tgl Supply</th><th class="r">Qty Supply</th><th class="r">Selisih</th><th class="r">Revenue</th><th>Pengirim</th><th>No. PRB</th><th>Status</th>'+(WRITE?'<th></th>':'')+'</tr>'+
+   r.slice((page-1)*per,page*per).map(x=>{const s=status(x),sel=num(x.qtyReq)-num(x.qtySupply);
+    const m=v=>v===''||v==null?'-':rp(v);return`<tr><td>${fd(x.tglReq)}</td><td>${fd(x.tglEst)}</td><td>${esc(x.noPO)}</td><td>${fd(x.tglPO)}</td><td>${esc(x.partNo)}</td><td>${esc(x.customer)}</td><td class="r">${nf(num(x.qtyReq))}</td><td class="r">${m(x.pricelist)}</td><td class="r">${x.diskon===''||x.diskon==null?'-':num(x.diskon)+'%'}</td><td class="r">${m(x.net)}</td><td>${fd(x.tglSupply)}</td><td class="r">${nf(num(x.qtySupply))}</td>
+    <td class="r ${sel>0?'neg':sel<0?'pos':''}">${sel>0?'−'+nf(sel)+' kurang':sel<0?'+'+nf(-sel)+' lebih':'0'}</td><td class="r">${x.revenue===''?'-':rp(x.revenue)}</td><td>${esc(x.pengirim)}</td><td>${esc(x.noPRB)}</td><td><span class="tag t-${tcls(s)}">${s}</span></td>
+    ${WRITE?`<td><button onclick="openForm(${x._row})">Edit</button> <button class="d" onclick="del(${x._row})">Hapus</button></td>`:''}</tr>`}).join('')||'<tr><td colspan="18">Tidak ada data.</td></tr>';
+  $('pg').textContent=`Halaman ${page}/${pages} · ${r.length} baris`;
+}
+// Export
+$('exp').onclick=()=>{const h=FIELDS.map(f=>f[1]).concat(['Selisih','Revenue','Status']);
+  const lines=[h].concat((window.__rows||[]).map(x=>FIELDS.map(f=>x[f[0]]).concat([num(x.qtyReq)-num(x.qtySupply),x.revenue,status(x)])));
+  const csv=lines.map(l=>l.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));a.download='data_po_supply.csv';a.click()};
+// Form
+$('fields').innerHTML=FIELDS.map(([k,l,t])=>`<div><label>${l}</label><input name="${k}" type="${t||'text'}" ${t==='number'?'min="0" step="any"':''}></div>`).join('');
+function openForm(row){editRow=row||null;const x=ALL.find(r=>r._row===row)||{};FIELDS.forEach(([k])=>$('fm').elements[k].value=x[k]??'');$('dt').textContent=row?'Edit Data':'Tambah Data';$('dlg').showModal()}
+$('add').onclick=()=>openForm();$('cx').onclick=()=>$('dlg').close();
+$('fm').onsubmit=async e=>{e.preventDefault();const d={};FIELDS.forEach(([k])=>d[k]=$('fm').elements[k].value.trim());
+  if(!d.noPO||!d.partNo)return toast('No. PO dan Part Number wajib diisi.',false);
+  for(const k of['qtyReq','qtySupply','pricelist','diskon','net'])if(d[k]!==''&&(isNaN(+d[k])||+d[k]<0))return toast('Angka tidak valid pada '+k,false);
+  if(d.diskon!==''&&+d.diskon>100)return toast('Diskon maksimal 100%.',false);
+  if(d.qtyReq==='')return toast('Qty Permintaan wajib diisi.',false);
+  $('sv').disabled=true;await post(editRow?{action:'update',row:editRow,data:d}:{action:'add',data:d});$('sv').disabled=false;$('dlg').close()};
+async function post(b){try{const r=await fetch(APP_CONFIG.API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(b)});const j=await r.json();if(!j.ok)throw new Error(j.error);toast('Data tersimpan ke Google Sheets.');await load()}catch(e){toast('Gagal: '+e.message,false)}}
+function del(row){if(confirm('Hapus baris ini dari Google Sheets?'))post({action:'delete',row})}
+// Nav & events
+const T={dash:'Dashboard',data:'Data PO & Supply',monthly:'Monthly Revenue',part:'Spare Part Analysis',cust:'Customer Analysis'};
+function nav(){const h=(location.hash||'#dash').slice(1);document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===h));
+  document.querySelectorAll('aside a').forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+h));$('title').textContent=T[h]||''}
+addEventListener('hashchange',nav);nav();
+['fY','fM','fC','pS','cS'].forEach(i=>$(i).onchange=()=>{page=1;render()});
+['q','fS','sO','d1','d2','d3','d4'].forEach(i=>$(i).oninput=()=>{page=1;renderTable()});
+$('sD').onclick=()=>{sortDir*=-1;$('sD').textContent=sortDir<0?'Terbaru ↓':'Terlama ↑';renderTable()};
+$('pv').onclick=()=>{page=Math.max(1,page-1);renderTable()};$('nx').onclick=()=>{page++;renderTable()};
+$('ref').onclick=load;load();
+if(window.APP_CONFIG&&APP_CONFIG.AUTO_REFRESH_SECONDS)setInterval(load,APP_CONFIG.AUTO_REFRESH_SECONDS*1000);
+</script></body></html>
